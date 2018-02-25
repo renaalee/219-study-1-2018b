@@ -1,0 +1,31 @@
+---
+title: "219 Study 1 Analysis"
+output: html_notebook
+---
+
+Load in the data, which has been previously filtered to focus only on key electrodes
+
+```{r}
+library(readr)
+eeg.data <- read_csv('data/generated/eeg_data_tidy.csv')
+eeg.data$electrode <- factor(eeg.data$electrode)
+eeg.data$subject <- factor(eeg.data$subject)
+eeg.data$stimulus.condition <- factor(eeg.data$stimulus.condition)
+eeg.data$grammar.condition <- factor(eeg.data$grammar.condition)
+eeg.data
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+```{r}
+library(dplyr)
+grand.average.data <- eeg.data %>% group_by(t, electrode, stimulus.condition, grammar.condition) %>%
+  summarize(mean.voltage = mean(voltage))
+library(ggplot2)
+ggplot(grand.average.data, aes(x=t, y=mean.voltage, color=grammar.condition))+
+  geom_line()+
+  geom_vline(xintercept=0)+
+  geom_hline(yintercept=0)+
+  facet_grid(electrode ~ stimulus.condition)+
+  theme_minimal()
+```
