@@ -1,11 +1,15 @@
 ---
 title: "219 Study 1 Analysis"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
 ---
 
 Load in the data, which has been previously filtered to focus only on key electrodes
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(readr)
 eeg.data <- read_csv('data/generated/eeg_data_tidy.csv')
 eeg.data$electrode <- factor(eeg.data$electrode)
@@ -15,17 +19,204 @@ eeg.data$grammar.condition <- factor(eeg.data$grammar.condition)
 eeg.data
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+4 subjects had fewer than 19 good segments per condition, so we excluded them.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(dplyr)
+excluded.subjects <- c(11, 23,25,40)
+eeg.data <- eeg.data %>% filter(!subject %in% excluded.subjects)
+```
+
+Calculate grand average waveforms.
+
+```{r fig.height=7, fig.width=8, warning=FALSE}
+library(ggplot2)
+
 grand.average.data <- eeg.data %>% group_by(t, electrode, stimulus.condition, grammar.condition) %>%
   summarize(mean.voltage = mean(voltage))
-library(ggplot2)
+
 ggplot(grand.average.data, aes(x=t, y=mean.voltage, color=grammar.condition))+
+  scale_color_hue(name="Grammar")+
+  annotate("rect", xmin=500,xmax=800,ymin=-3.5,ymax=3.5,fill='black',alpha=0.2)+
   geom_line()+
   geom_vline(xintercept=0)+
   geom_hline(yintercept=0)+
   facet_grid(electrode ~ stimulus.condition)+
   theme_minimal()
 ```
+
+## ANOVAs
+
+Compute ANOVAs. Our pre-registration says:
+
+> Repeated-measures ANOVA, 2 (grammatical v. nongrammatical) x N (where N = the number of relevant electrodes; see below), of the mean amplitude of wave forms will be conducted in the 500 to 800 msec window separately for both the language and music conditions and separately for lateral and midline electrodes, following Patel et al. This is 4 total ANOVAs.
+
+First, some pre-analysis shared code. Define which electrodes are midline and which are lateral, declare analysis time window, and load necessary packages.
+
+```{r warning=FALSE}
+library(ez)
+lateral.electrodes <- c(33,39,42,45,70,83,93,108,115,122)
+midline.electrodes <- c(11,62,129)
+p600.time.window <- 500:800
+```
+
+#### Language, midline electrodes
+
+```{r warning=FALSE}
+language.midline.data <- eeg.data %>% 
+  filter(electrode %in% midline.electrodes, t %in% p600.time.window, stimulus.condition=='Language') %>% 
+  group_by(subject, electrode, grammar.condition) %>%
+  summarize(mean.amplitude = mean(voltage))
+language.midline.anova <- ezANOVA(language.midline.data, dv=mean.amplitude, wid=subject, within = c('electrode', 'grammar.condition'))
+language.midline.anova$ANOVA
+```
+
+Plot of data that went into ANOVA
+
+```{r}
+ggplot(language.midline.data, aes(x=electrode,y=mean.amplitude,color=grammar.condition)) +
+  geom_boxplot()
+```
+
+#### Language, lateral electrodes
+
+```{r warning=FALSE}
+language.lateral.data <- eeg.data %>% 
+  filter(electrode %in% lateral.electrodes, t %in% p600.time.window, stimulus.condition=='Language') %>% 
+  group_by(subject, electrode, grammar.condition) %>%
+  summarize(mean.amplitude = mean(voltage))
+language.lateral.anova <- ezANOVA(language.lateral.data, dv=mean.amplitude, wid=subject, within = c('electrode', 'grammar.condition'))
+language.lateral.anova$ANOVA
+```
+
+Plot of data that went into ANOVA
+
+```{r}
+ggplot(language.lateral.data, aes(x=electrode,y=mean.amplitude,color=grammar.condition)) +
+  geom_boxplot()
+```
+
+#### Music, midline electrodes
+
+```{r warning=FALSE}
+music.midline.data <- eeg.data %>% 
+  filter(electrode %in% midline.electrodes, t %in% p600.time.window, stimulus.condition=='Music') %>% 
+  group_by(subject, electrode, grammar.condition) %>%
+  summarize(mean.amplitude = mean(voltage))
+music.midline.anova <- ezANOVA(music.midline.data, dv=mean.amplitude, wid=subject, within = c('electrode', 'grammar.condition'))
+music.midline.anova$ANOVA
+```
+
+Plot of data that went into ANOVA
+
+```{r}
+ggplot(music.midline.data, aes(x=electrode,y=mean.amplitude,color=grammar.condition)) +
+  geom_boxplot()
+```
+
+#### Music, lateral electrodes
+
+```{r warning=FALSE}
+music.lateral.data <- eeg.data %>% 
+  filter(electrode %in% lateral.electrodes, t %in% p600.time.window, stimulus.condition=='Music') %>% 
+  group_by(subject, electrode, grammar.condition) %>%
+  summarize(mean.amplitude = mean(voltage))
+music.lateral.anova <- ezANOVA(music.lateral.data, dv=mean.amplitude, wid=subject, within = c('electrode', 'grammar.condition'))
+music.lateral.anova$ANOVA
+```
+
+Plot of data that went into ANOVA
+
+```{r}
+ggplot(music.lateral.data, aes(x=electrode,y=mean.amplitude,color=grammar.condition)) +
+  geom_boxplot()
+```
+
+
+## Difference wave analysis comparing music and language directly
+
+We analyze the difference between language and music P600s. Our pre-registration describes the analysis:
+
+> Repeated-measures ANOVA, 2 (language v. music) x N (where N = the number of relevant electrodes; see below), of the mean amplitude of the difference wave forms (ungrammatical - grammatical) will be conducted in the 500 to 800 msec separately for lateral and midline electrodes. 
+
+First we calculate the difference waves (ungrammatical - grammatical) for each subject in each condition.
+
+```{r}
+difference.waves <- eeg.data %>% 
+  group_by(subject, electrode, t, stimulus.condition) %>%
+  mutate(difference.voltage = voltage - lag(voltage)) %>%
+  filter(!is.na(difference.voltage)) %>%
+  select(subject, t, electrode, stimulus.condition, difference.voltage) %>%
+  ungroup()
+```
+
+
+Plot of the difference waves.
+
+```{r}
+difference.waves.grand.average <- difference.waves %>% 
+  group_by(electrode,t,stimulus.condition) %>%
+  summarize(mean.difference = mean(difference.voltage))
+ggplot(difference.waves.grand.average, aes(x=t, y=mean.difference, color=stimulus.condition))+
+  geom_line()+
+  geom_hline(yintercept = 0)+
+  geom_vline(xintercept = 0)+
+  facet_wrap(~electrode)
+
+```
+
+#### Midline electrodes
+
+```{r warning=FALSE}
+midline.difference.data <- difference.waves %>%
+  filter(electrode %in% midline.electrodes, t %in% p600.time.window) %>% 
+  group_by(subject, electrode, stimulus.condition) %>%
+  summarize(mean.amplitude = mean(difference.voltage)) %>%
+  as.data.frame()
+
+midline.difference.anova <- ezANOVA(midline.difference.data, dv=mean.amplitude, wid=subject, within=c('stimulus.condition','electrode'))
+midline.difference.anova$ANOVA
+```
+
+Plot of ANOVA data
+
+```{r}
+ggplot(midline.difference.data, aes(x=electrode,y=mean.amplitude,color=stimulus.condition))+
+  geom_boxplot()
+```
+
+#### Lateral electrodes
+
+```{r warning=FALSE}
+lateral.difference.data <- difference.waves %>%
+  filter(electrode %in% lateral.electrodes, t %in% p600.time.window) %>% 
+  group_by(subject, electrode, stimulus.condition) %>%
+  summarize(mean.amplitude = mean(difference.voltage)) %>%
+  as.data.frame()
+
+lateral.difference.anova <- ezANOVA(lateral.difference.data, dv=mean.amplitude, wid=subject, within=c(stimulus.condition,electrode))
+lateral.difference.anova$ANOVA
+```
+
+Plot of ANOVA data
+
+```{r}
+ggplot(lateral.difference.data, aes(x=electrode,y=mean.amplitude,color=stimulus.condition))+
+  geom_boxplot()
+```
+
+#### Bayes factors
+
+```{r message=FALSE, warning=FALSE}
+library(BayesFactor)
+bf.anova.midline <- anovaBF(mean.amplitude ~ stimulus.condition * electrode + subject, data= midline.difference.data, whichRandom = "subject")
+summary(bf.anova.midline)
+```
+
+
+
+```{r}
+bf.anova.lateral <- anovaBF(mean.amplitude ~ stimulus.condition * electrode + subject, data= lateral.difference.data, whichRandom = "subject")
+summary(bf.anova.lateral)
+```
+
