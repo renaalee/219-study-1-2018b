@@ -1,0 +1,42 @@
+Subject,Gender,Age,Instruments,YearsMusicalExperience,HoursPerWeek
+1,F,19,"piano, flute",6,4
+2,M,21,"piano, drums",12,6
+3,M,21,"guitar, violin",8,2
+4,F,19,"vioin, voice",6,2
+5,M,21,"guitar, piano",5,10
+6,F,18,flute,11,4
+7,M,21,oboe,4,10
+8,M,18,"violin, piano, guitar",14,2
+9,F,19,clarinet,7,8
+11,F,19,"cello, piano",11,10
+12,M,21,"cello, guitar, piano",16,1
+13,F,19,violin,15,7
+14,M,19,violin,8,6
+15,F,19,trombone,10,5
+16,F,21,oboe,14,10
+17,F,20,voice,7,8
+18,F,21,"voice, violin",7,6
+19,F,18,"piano, voice, organ",12,3
+20,M,19,"guitar, keyboard, voice",10,3
+21,F,20,violin,15,25
+22,F,20,"voice, piano",8,12
+23,F,20,piano,7,12
+24,F,19,erhu,15,7
+25,F,20,"piano, violin",11,14
+26,M,22,clarinet,13,10
+28,M,20,violin,6,6
+29,F,18,flute,9,4
+31,F,22,piano,13,1
+32,F,18,piano,10,4
+33,F,20,french horn,9,0
+34,N,19,"voice, flute, guitar",9,8
+35,M,20,"guitar, piano",10,15
+36,M,22,guitar,15,7
+37,F,18,"cello, voice",15,7
+38,M,20,"bassoon, organ",13,6
+39,M,21,"organ, piano",10,6
+40,M,21,"piano, french horn",12,2
+41,F,20,trumpet,5,4
+42,F,20,"piano, clarinet",4,4
+43,F,19,"flute, ukulele",10,8
+44,M,19,mallet percussion,8,0

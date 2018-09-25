@@ -7,44 +7,217 @@ output:
   pdf_document: default
 ---
 
+```{r message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(grid)
+library(cowplot)
+library(ggplot2)
+library(ez)
+library(BayesFactor)
+```
+
+# Subject Exclusions
+
+44 people participated in the experiment. Of those, 5 had severe technical difficulties that either resulted in a failure to launch the experiment or total data loss. 3 of the 5 are not listed in the data because they never started data collection. The other 2, subjects X and X, are included in the list of excluded subjects below.
+
+With the remaining 39 subjects, we examined how many artifact-free EEG segments each subject had per condition. Based on these distributions we decided to exclude subjects with fewer than 19 good segments per condition. We made this determination prior to looking at any data that was relevant to the main analysis. We did not attempt to specify this number in advance because we did not know what the rate of artifacts would be and we knew that there was a way to make this decision post data collection without introducing bias in favor of any particular hypothesis.
+
+```{r}
+technical.problems <- c(8, 21)
+too.few.segments <- c(11, 23, 25, 40)
+excluded.subjects <- c(technical.problems, too.few.segments)
+```
+
+
+# Subject Demographics
+
+We start by loading in the data and excluding subjects (see section above for exclusion reasons).
+
+```{r message=FALSE, warning=FALSE}
+demographic.data <- read_csv('data/raw/demographics/demographic_data.csv') %>%
+  filter(!Subject %in% excluded.subjects)
+```
+
+Table of gender frequencies (Female, Male, Non-binary)
+
+```{r}
+table(demographic.data$Gender)
+```
+
+Calculating summary statistics for age, years of musical experience, and weekly music playing.
+
+```{r}
+demographic.summary <- demographic.data %>% 
+  summarize(mean.age = mean(Age), 
+            sd.age = sd(Age),
+            min.age = min(Age),
+            max.age = max(Age),
+            mean.years.experience = mean(YearsMusicalExperience),
+            sd.years.experience = sd(YearsMusicalExperience),
+            mean.hours.per.week = mean(HoursPerWeek),
+            sd.hours.per.week = sd(HoursPerWeek))
+demographic.summary
+```
+
+# Behavioral Analysis
+
+Load in the data and exclude subjects (see first section for exclusion reasons). We remove the trials associated with the filler condition, which are not relevant to any analysis.
+
+```{r message=FALSE, warning=FALSE}
+behavioral.data <- read_csv('data/generated/beh_data_tidy.csv') %>%
+  filter(!subject_id %in% excluded.subjects) %>%
+  filter(!syntax_cat %in% c('Filler-Gram', 'Filler-Ungram'))
+```
+
+We want to know how accurate subjects were at the acceptable/unacceptable judgments in each condition, and compare this to the accuracy reported by Patel et al. (1998).
+
+```{r}
+summary.behavioral <- behavioral.data %>%
+  group_by(syntax_cat, subject_id) %>%
+  summarize(accuracy = mean(correct) * 100) %>%
+  group_by(syntax_cat) %>%
+  summarize(mean = mean(accuracy), sd= sd(accuracy))
+summary.behavioral
+```
+
+# EEG Analysis
+
 Load in the data, which has been previously filtered to focus only on key electrodes
 
 ```{r message=FALSE, warning=FALSE}
-library(readr)
-eeg.data <- read_csv('data/generated/eeg_data_tidy.csv')
-eeg.data$electrode <- factor(eeg.data$electrode)
-eeg.data$subject <- factor(eeg.data$subject)
-eeg.data$stimulus.condition <- factor(eeg.data$stimulus.condition)
-eeg.data$grammar.condition <- factor(eeg.data$grammar.condition)
-eeg.data
+eeg.data <- read_csv('data/generated/eeg_data_tidy.csv', col_types = cols(electrode = col_factor(levels=NULL), 
+                                                                          subject=col_factor(levels=NULL), 
+                                                                          stimulus.condition = col_factor(levels=NULL),
+                                                                          grammar.condition = col_factor(levels=NULL))) %>% 
+  filter(!subject %in% excluded.subjects)
+
 ```
 
-4 subjects had fewer than 19 good segments per condition, so we excluded them.
-
-```{r message=FALSE, warning=FALSE}
-library(dplyr)
-excluded.subjects <- c(11, 23,25,40)
-eeg.data <- eeg.data %>% filter(!subject %in% excluded.subjects)
-```
 
 Calculate grand average waveforms.
 
-```{r fig.height=7, fig.width=8, warning=FALSE}
+```{r fig.height=7, fig.width=8, message=FALSE, warning=FALSE}
 library(ggplot2)
+
+electrode.locations <- data.frame(electrode = character(), name = character(), x = numeric(), y= numeric()) %>%
+  rbind(data.frame(electrode="11", name = "Fz (11)", x=8/16, y=11/16)) %>%
+  rbind(data.frame(electrode="33", name = "F7 (33)", x=4/16, y=10.7/16)) %>%
+  rbind(data.frame(electrode="39", name = "ATL (39)", x=3.3/16, y=9.2/16)) %>%
+  rbind(data.frame(electrode="42", name = "WL (42)", x=5.8/16, y=7/16)) %>%
+  rbind(data.frame(electrode="45", name = "TL (45)", x=3.2/16, y=7.5/16)) %>%
+  rbind(data.frame(electrode="62", name = "Pz (62)", x=8/16, y=5.5/16)) %>%
+  rbind(data.frame(electrode="70", name = "O1 (70)", x=6.5/16, y=4/16)) %>%
+  rbind(data.frame(electrode="83", name = "O2 (83)", x=9.5/16, y=4/16)) %>%
+  rbind(data.frame(electrode="93", name = "WR (93)", x=10.2/16, y=7/16)) %>%
+  rbind(data.frame(electrode="108", name = "TR (108)", x=12.8/16, y=7.5/16)) %>%
+  rbind(data.frame(electrode="115", name = "ATR (115)", x=12.7/16, y=9.2/16)) %>%
+  rbind(data.frame(electrode="122", name = "F8 (122)", x=12/16, y=10.7/16)) %>%
+  rbind(data.frame(electrode="129", name = "Cz (129)", x=8/16, y=8/16))
 
 grand.average.data <- eeg.data %>% group_by(t, electrode, stimulus.condition, grammar.condition) %>%
   summarize(mean.voltage = mean(voltage))
 
-ggplot(grand.average.data, aes(x=t, y=mean.voltage, color=grammar.condition))+
-  scale_color_hue(name="Grammar")+
-  annotate("rect", xmin=500,xmax=800,ymin=-3.5,ymax=3.5,fill='black',alpha=0.2)+
-  geom_line()+
+make.plot <- function(plotting.data){
+  p <- ggplot(plotting.data, aes(x=t, y=mean.voltage, color=grammar.condition))+
+    scale_color_brewer(name="Grammar", type="qual", palette="Set1", guide=F)+
+    annotate("rect", xmin=500,xmax=800,ymin=-.5,ymax=.5,fill='black',alpha=0.2)+
+    coord_cartesian(ylim=c(min(grand.average.data$mean.voltage), max(grand.average.data$mean.voltage)))+
+    geom_line()+
+    geom_vline(xintercept=0)+
+    geom_hline(yintercept=0)+
+    geom_segment(data = ticks, aes(x=x,y=y,xend=xend,yend=yend), color="black")+ 
+    geom_segment(x=-50, y=2, xend=0,yend=2, color="black")+
+    geom_segment(x=-50, y=-2, xend=0,yend=-2, color="black")+
+    theme_void()
+  return(p)
+}
+
+ticks <- data.frame(x=seq(-100,1000,100),xend=seq(-100,1000,100),y=-0.25,yend=0.25)
+
+legend.plot <- ggplot(grand.average.data, aes(x=t,y=mean.voltage,color=grammar.condition))+
+  geom_blank()+
+  theme_void()+
   geom_vline(xintercept=0)+
   geom_hline(yintercept=0)+
-  facet_grid(electrode ~ stimulus.condition)+
-  theme_minimal()
-```
+  annotate("rect", xmin=500,xmax=800,ymin=-.5,ymax=.5,fill='black',alpha=0.2)+
+  scale_color_brewer(guide=F)+
+  geom_segment(data = ticks, aes(x=x,y=y,xend=xend,yend=yend), color="black")+ 
+  annotate("text", label="500", x=500, y = -1.0, size=3)+
+  annotate("text", label="1000", x=1000, y = -1.0, size=3)+
+  geom_segment(x=-50, y=2, xend=0,yend=2, color="black")+
+  geom_segment(x=-50, y=-2, xend=0,yend=-2, color="black")+
+  coord_cartesian(ylim=c(min(grand.average.data$mean.voltage), max(grand.average.data$mean.voltage)), xlim=c(-100,1100))
 
+condition.legend <- (ggplot(grand.average.data, aes(x=t,y=mean.voltage,color=grammar.condition))+
+  geom_line()+
+  theme_minimal(base_size = 11)+
+  scale_color_brewer(palette="Set1", type="seq", name=NULL)) %>%
+  get_legend()
+
+plots <- grand.average.data %>% group_by(electrode, stimulus.condition) %>% nest() %>% mutate(plot = map(data, make.plot)) %>% right_join(electrode.locations)
+
+scale.factor.x <- (1 / (max(plots$x) - min(plots$x))) * 0.8
+scale.factor.y <- (1 / (max(plots$y) - min(plots$y))) * 0.8
+
+plots$x <- (plots$x - 0.5) * scale.factor.x + 0.5
+plots$y <- (plots$y - 0.5) * scale.factor.y + 0.5
+
+x.size <- .2
+y.size <- .15
+
+
+language.data <- plots %>% filter(stimulus.condition == "Language")
+language.scalp <- ggplot(language.data) + 
+  geom_blank() +
+  theme_void() + 
+  theme(plot.margin = unit(c(8,8,8,8), "pt"))
+
+for(i in 1:nrow(language.data)){
+  
+  language.scalp <- language.scalp + 
+    annotation_custom( grob = ggplotGrob(language.data$plot[[i]]), xmin = language.data$x[[i]] - x.size/2, xmax = language.data$x[[i]] + x.size/2, ymin = language.data$y[[i]] - y.size/2, ymax = language.data$y[[i]] + y.size/2) +
+    annotation_custom(grob = textGrob(language.data$name[[i]]), xmin = language.data$x[[i]] - x.size/2, xmax = language.data$x[[i]] + x.size/2, ymin = language.data$y[[i]] + y.size/2 - 0.02, ymax = language.data$y[[i]] + y.size/2)
+
+}
+
+language.scalp <- language.scalp + 
+  annotation_custom(grob = ggplotGrob(legend.plot), xmin = 1.0 - x.size, xmax=1.0, ymin = 0, ymax= y.size) +
+  annotation_custom(grob = textGrob("Time since stimulus onset (ms)", just="right", gp=gpar(fontsize=10)), xmin = .94, xmax =1.13 , ymin =-0.04 , ymax = -0.03 ) +
+  annotation_custom(grob = textGrob(expression("ERP amplitude ("*mu*"v)"), rot=90, gp=gpar(fontsize=10)), xmin = .74, xmax =.79 , ymin =0.04 , ymax = 0.1 ) +
+  annotation_custom(grob = textGrob(expression("+2"), gp=gpar(fontsize=8)), xmin = .80, xmax =.81 , ymin =0.12 , ymax = 0.13 ) +
+  annotation_custom(grob = textGrob(expression("-2"), gp=gpar(fontsize=8)), xmin = .80, xmax =.81 , ymin =0.02 , ymax = 0.03 ) +
+  annotation_custom(grob = condition.legend, xmin = 0.85, xmax = 1.0, ymin= 0.05, ymax = 0.20)
+
+language.scalp
+```
+```{r fig.height=7, fig.width=8, message=FALSE, warning=FALSE}
+music.data <- plots %>% filter(stimulus.condition == "Music")
+music.scalp <- ggplot(music.data) + 
+  geom_blank() +
+  theme_void() + 
+  theme(plot.margin = unit(c(8,8,8,8), "pt"))
+
+for(i in 1:nrow(music.data)){
+  
+  music.scalp <- music.scalp + 
+    annotation_custom( grob = ggplotGrob(music.data$plot[[i]]), xmin = music.data$x[[i]] - x.size/2, xmax = music.data$x[[i]] + x.size/2, ymin = music.data$y[[i]] - y.size/2, ymax = music.data$y[[i]] + y.size/2) +
+    annotation_custom(grob = textGrob(music.data$name[[i]]), xmin = music.data$x[[i]] - x.size/2, xmax = music.data$x[[i]] + x.size/2, ymin = music.data$y[[i]] + y.size/2 - 0.02, ymax = music.data$y[[i]] + y.size/2)
+
+}
+
+music.scalp <- music.scalp + 
+  annotation_custom(grob = ggplotGrob(legend.plot), xmin = 1.0 - x.size, xmax=1.0, ymin = 0, ymax= y.size) +
+  annotation_custom(grob = textGrob("Time since stimulus onset (ms)", just="right", gp=gpar(fontsize=10)), xmin = .94, xmax =1.13 , ymin =-0.04 , ymax = -0.03 ) +
+  annotation_custom(grob = textGrob(expression("ERP amplitude ("*mu*"v)"), rot=90, gp=gpar(fontsize=10)), xmin = .74, xmax =.79 , ymin =0.04 , ymax = 0.1 ) +
+  annotation_custom(grob = textGrob(expression("+2"), gp=gpar(fontsize=8)), xmin = .80, xmax =.81 , ymin =0.12 , ymax = 0.13 ) +
+  annotation_custom(grob = textGrob(expression("-2"), gp=gpar(fontsize=8)), xmin = .80, xmax =.81 , ymin =0.02 , ymax = 0.03 ) +
+  annotation_custom(grob = condition.legend, xmin = 0.85, xmax = 1.0, ymin= 0.05, ymax = 0.20)
+
+music.scalp
+```
 ## ANOVAs
 
 Compute ANOVAs. Our pre-registration says:

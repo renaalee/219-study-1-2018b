@@ -1,3 +1,12 @@
+#
+# This script was run to convert the raw data to tidy format.
+# It also removes filters the EEG data to only the electrodes that
+# we planned to analyze.
+#
+# Raw data are stored in the /data/raw folder
+# Tidy data produced by this script are in /data/generated
+#
+
 library(readr)
 library(tidyr)
 library(stringr)
