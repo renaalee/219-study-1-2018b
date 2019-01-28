@@ -287,6 +287,19 @@ music.lateral.anova <- ezANOVA(music.lateral.data, dv=mean.amplitude, wid=subjec
 music.lateral.anova$ANOVA
 ```
 
+#### RATN Analysis
+```{r warning=FALSE}
+RATN.time.window <- 300:500
+
+eeg_data_RATN <- eeg.data %>% 
+  filter(electrode %in% lateral.electrodes, t %in% RATN.time.window, stimulus.condition=='Music') %>% 
+  mutate(hemisphere = ifelse(electrode %in% c(33,39,42,45,70), "left", "right")) %>% mutate(electrode.site = ifelse(electrode %in% c(33,122),"F", ifelse(electrode %in% c(39,115),"A", ifelse(electrode %in% c(42,93),"W", ifelse(electrode %in% c(45,108),"T","O"))))) %>% 
+  group_by(subject, electrode.site, grammar.condition, hemisphere) %>% summarize(mean.amplitude = mean(voltage))
+                                  
+RATN.anova <- ezANOVA(eeg_data_RATN, dv=mean.amplitude, wid=subject, within = c('electrode.site', 'grammar.condition', 'hemisphere'))
+RATN.anova$ANOVA
+```
+
 ### Plot of all ANOVA-relevant data
 
 ```{r fig.height=6, fig.width=8}
@@ -518,6 +531,12 @@ extractBF(bf.anova.midline)$bf[1] / extractBF(bf.anova.midline)$bf[3]
 set.seed(12604)
 bf.anova.lateral <- anovaBF(mean.amplitude ~ stimulus.condition * electrode + subject, data= lateral.difference.data, whichRandom = "subject")
 summary(bf.anova.lateral)
+```
+
+BF for RATN 3-way interaction of grammar condition, hemisphere, and electrode site
+```{r}
+bf.anova.RATN <- lmBF(mean.amplitude ~ electrode.site * grammar.condition * hemisphere + subject, data=data.frame(eeg_data_RATN), whichRandom = "subject")
+summary(bf.anova.RATN)
 ```
 
 BF for model with electrode only vs. full model.
