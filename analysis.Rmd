@@ -528,3 +528,12 @@ BF for full model vs. main effects only.
 extractBF(bf.anova.lateral)$bf[1] / extractBF(bf.anova.lateral)$bf[4]
 extractBF(bf.anova.lateral)$bf[4] / extractBF(bf.anova.lateral)$bf[3]
 ```
+
+BF for RATN analysis
+```{r}
+eeg_data_RATN$electrode.site <- as.factor(eeg_data_RATN$electrode.site)
+eeg_data_RATN$hemisphere <- as.factor(eeg_data_RATN$hemisphere)
+bf.anova.RATN <- anovaBF(mean.amplitude ~ electrode.site * grammar.condition * hemisphere + subject, data=data.frame(eeg_data_RATN), whichRandom = "subject")
+summary(bf.anova.RATN)
+```
+
